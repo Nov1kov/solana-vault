@@ -1,5 +1,5 @@
 use solana_program::{
-    account_info::{AccountInfo, next_account_info},
+    account_info::{ AccountInfo, next_account_info },
     entrypoint::ProgramResult,
     pubkey::Pubkey,
     msg,
@@ -7,7 +7,7 @@ use solana_program::{
     system_program,
     program_error::ProgramError,
 };
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{ BorshSerialize, BorshDeserialize };
 
 // Define the structure for storing deposit information
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Default)]
@@ -19,9 +19,13 @@ pub struct DepositAccount {
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum DepositInstruction {
     /// Deposit SOL into the account
-    Deposit { amount: u64 },
+    Deposit {
+        amount: u64,
+    },
     /// Withdraw SOL from the account
-    Withdraw { amount: u64 },
+    Withdraw {
+        amount: u64,
+    },
 }
 
 // Define the program's entrypoint
@@ -31,7 +35,7 @@ entrypoint!(process_instruction);
 pub fn process_instruction(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    instruction_data: &[u8],
+    instruction_data: &[u8]
 ) -> ProgramResult {
     // Deserialize the instruction
     let instruction = DepositInstruction::try_from_slice(instruction_data)?;
@@ -74,7 +78,7 @@ pub fn process_instruction(
             deposit_data.serialize(&mut &mut deposit_account.data.borrow_mut()[..])?;
 
             msg!("Deposit successful: {} SOL", amount);
-        },
+        }
         DepositInstruction::Withdraw { amount } => {
             // Check sufficient balance
             if amount > deposit_data.balance {
@@ -98,17 +102,25 @@ pub fn process_instruction(
 
 #[cfg(test)]
 mod tests {
-    use solana_program_test::{processor, BanksClient, ProgramTest};
+    use solana_program_test::{ processor, BanksClientError, ProgramTest };
     use std::str::FromStr;
-    use borsh::{BorshDeserialize, BorshSerialize};
-    use solana_sdk::{account::Account, signature::{Keypair, Signer}, transaction::Transaction, pubkey::Pubkey as SdkPubkey, system_program};
-    use solana_sdk::instruction::{AccountMeta, Instruction};
-    use crate::{process_instruction, DepositAccount, DepositInstruction};
+    use borsh::{ BorshDeserialize, BorshSerialize };
+    use solana_sdk::{
+        account::Account,
+        instruction::{ AccountMeta, Instruction, InstructionError },
+        pubkey::Pubkey as SdkPubkey,
+        signature::{ Keypair, Signer },
+        system_program,
+        transaction::{ Transaction, TransactionError },
+    };
+    use crate::{ process_instruction, DepositAccount, DepositInstruction };
 
     #[tokio::test]
     async fn test_deposit() {
         // Create a unique program ID
-        let program_id = SdkPubkey::from_str("EbKQVLUFJp38qanC4NwQUqsrWrRV4MUMhFRmTTJKHNMC").unwrap();
+        let program_id = SdkPubkey::from_str(
+            "EbKQVLUFJp38qanC4NwQUqsrWrRV4MUMhFRmTTJKHNMC"
+        ).unwrap();
 
         // Setup the program test environment
         let mut program_test = ProgramTest::new(
@@ -122,35 +134,34 @@ mod tests {
         let deposit_account = Keypair::new();
 
         // Add accounts to the test environment
-        program_test.add_account(
-            depositor.pubkey(),
-            Account {
-                lamports: 100_000_000, // 0.1 SOL
-                ..Account::default()
-            }
-        );
+        program_test.add_account(depositor.pubkey(), Account {
+            lamports: 100_000_000, // 0.1 SOL
+            ..Account::default()
+        });
 
+        let deposit_account_data = DepositAccount { balance: 0 };
+        let mut data = vec![];
+        deposit_account_data.serialize(&mut data).unwrap();
         // Initialize the deposit account
-        program_test.add_account(
-            deposit_account.pubkey(),
-            Account {
-                owner: program_id,
-                ..Account::default()
-            }
-        );
+        program_test.add_account(deposit_account.pubkey(), Account {
+            owner: program_id,
+            lamports: 1,
+            data: data,
+            ..Account::default()
+        });
 
         // Start the test runtime
-        let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+        let (banks_client, payer, recent_blockhash) = program_test.start().await;
 
         // Prepare deposit instruction
         let deposit_amount = 50_000_000; // 0.05 SOL
         let deposit_instruction = Instruction::new_with_borsh(
             program_id,
-            &DepositInstruction::Deposit { amount: deposit_amount },
+            &(DepositInstruction::Deposit { amount: deposit_amount }),
             vec![
                 AccountMeta::new(depositor.pubkey(), true),
                 AccountMeta::new(deposit_account.pubkey(), false),
-                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(system_program::id(), false)
             ]
         );
 
@@ -166,8 +177,7 @@ mod tests {
 
         // Verify deposit account balance
         let deposit_account_data = banks_client
-            .get_account(deposit_account.pubkey())
-            .await
+            .get_account(deposit_account.pubkey()).await
             .unwrap()
             .unwrap();
 
@@ -178,7 +188,9 @@ mod tests {
     #[tokio::test]
     async fn test_withdrawal() {
         // Create a unique program ID
-        let program_id = SdkPubkey::from_str("EbKQVLUFJp38qanC4NwQUqsrWrRV4MUMhFRmTTJKHNMC").unwrap();
+        let program_id = SdkPubkey::from_str(
+            "EbKQVLUFJp38qanC4NwQUqsrWrRV4MUMhFRmTTJKHNMC"
+        ).unwrap();
 
         // Setup the program test environment
         let mut program_test = ProgramTest::new(
@@ -191,43 +203,37 @@ mod tests {
         let deposit_account = Keypair::new();
 
         // Pre-fund accounts
-        program_test.add_account(
-            depositor.pubkey(),
-            Account {
-                lamports: 100_000_000,
-                ..Account::default()
-            }
-        );
+        program_test.add_account(depositor.pubkey(), Account {
+            lamports: 100_000_000,
+            ..Account::default()
+        });
 
         // Initialize deposit account with balance
         let initial_balance = 75_000_000; // 0.075 SOL
-        let mut deposit_account_data = DepositAccount { balance: initial_balance };
+        let deposit_account_data = DepositAccount { balance: initial_balance };
         let mut account_data = vec![];
         deposit_account_data.serialize(&mut account_data).unwrap();
 
-        program_test.add_account(
-            deposit_account.pubkey(),
-            Account {
-                owner: program_id,
-                lamports: initial_balance,
-                data: account_data,
-                ..Account::default()
-            }
-        );
+        program_test.add_account(deposit_account.pubkey(), Account {
+            owner: program_id,
+            lamports: initial_balance,
+            data: account_data,
+            ..Account::default()
+        });
 
         // Start test runtime
-        let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+        let (banks_client, payer, recent_blockhash) = program_test.start().await;
 
         // Prepare withdrawal instruction
         let withdraw_amount = 50_000_000; // 0.05 SOL
         let deposit_pubkey = depositor.pubkey();
         let withdraw_instruction = Instruction::new_with_borsh(
             program_id,
-            &DepositInstruction::Withdraw { amount: withdraw_amount },
+            &(DepositInstruction::Withdraw { amount: withdraw_amount }),
             vec![
                 AccountMeta::new(deposit_pubkey, true),
                 AccountMeta::new(deposit_account.pubkey(), false),
-                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(system_program::id(), false)
             ]
         );
 
@@ -243,8 +249,7 @@ mod tests {
 
         // Verify deposit account balance after withdrawal
         let deposit_account_data = banks_client
-            .get_account(deposit_account.pubkey())
-            .await
+            .get_account(deposit_account.pubkey()).await
             .unwrap()
             .unwrap();
 
@@ -255,7 +260,9 @@ mod tests {
     #[tokio::test]
     async fn test_insufficient_funds_withdrawal() {
         // Create a unique program ID
-        let program_id = SdkPubkey::from_str("EbKQVLUFJp38qanC4NwQUqsrWrRV4MUMhFRmTTJKHNMC").unwrap();
+        let program_id = SdkPubkey::from_str(
+            "EbKQVLUFJp38qanC4NwQUqsrWrRV4MUMhFRmTTJKHNMC"
+        ).unwrap();
 
         // Setup the program test environment
         let mut program_test = ProgramTest::new(
@@ -268,42 +275,36 @@ mod tests {
         let deposit_account = Keypair::new();
 
         // Pre-fund accounts
-        program_test.add_account(
-            depositor.pubkey(), 
-            Account { 
-                lamports: 100_000_000, 
-                ..Account::default() 
-            }
-        );
+        program_test.add_account(depositor.pubkey(), Account {
+            lamports: 100_000_000,
+            ..Account::default()
+        });
 
         // Initialize deposit account with low balance
         let initial_balance = 25_000_000; // 0.025 SOL
-        let mut deposit_account_data = DepositAccount { balance: initial_balance };
+        let deposit_account_data = DepositAccount { balance: initial_balance };
         let mut account_data = vec![];
         deposit_account_data.serialize(&mut account_data).unwrap();
 
-        program_test.add_account(
-            deposit_account.pubkey(), 
-            Account { 
-                owner: program_id,
-                lamports: initial_balance,
-                data: account_data,
-                ..Account::default() 
-            }
-        );
+        program_test.add_account(deposit_account.pubkey(), Account {
+            owner: program_id,
+            lamports: initial_balance,
+            data: account_data,
+            ..Account::default()
+        });
 
         // Start test runtime
-        let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+        let (banks_client, payer, recent_blockhash) = program_test.start().await;
 
         // Prepare withdrawal instruction with amount exceeding balance
         let withdraw_amount = 50_000_000; // 0.05 SOL
         let withdraw_instruction = Instruction::new_with_borsh(
             program_id,
-            &DepositInstruction::Withdraw { amount: withdraw_amount },
+            &(DepositInstruction::Withdraw { amount: withdraw_amount }),
             vec![
                 AccountMeta::new(depositor.pubkey(), true),
                 AccountMeta::new(deposit_account.pubkey(), false),
-                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(system_program::id(), false)
             ]
         );
 
@@ -314,9 +315,19 @@ mod tests {
         );
         transaction.sign(&[&payer, &depositor], recent_blockhash);
 
-        // Expect transaction to fail due to insufficient funds
+        // Process the transaction
         let result = banks_client.process_transaction(transaction).await;
-        assert!(result.is_err());
+        if
+            let Err(
+                BanksClientError::TransactionError(
+                    TransactionError::InstructionError(0, InstructionError::InsufficientFunds),
+                ),
+            ) = result
+        {
+            // Test passed
+        } else {
+            panic!("Expected InsufficientFunds error");
+        }
     }
 }
 
