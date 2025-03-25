@@ -29,6 +29,9 @@ pub enum DepositInstruction {
     },
 }
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_program::entrypoint;
+
 // Define the program's entrypoint
 entrypoint!(process_instruction);
 
@@ -422,7 +425,3 @@ mod tests {
         }
     }
 }
-
-// Required by Solana for proper program compilation
-#[cfg(not(feature = "no-entrypoint"))]
-use solana_program::entrypoint;
