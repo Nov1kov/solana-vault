@@ -1,7 +1,6 @@
 import * as web3 from "@solana/web3.js";
 import * as borsh from "borsh";
 
-// Изменим структуру для точного соответствия Rust-enum
 class DepositInstruction {
   kind: number;
   amount: bigint;
@@ -12,14 +11,13 @@ class DepositInstruction {
     this.amount = BigInt(amount);
   }
 
-  // Обновленная схема сериализации
   static schema = new Map([
     [
       DepositInstruction,
       {
         kind: "struct",
         fields: [
-          ["kind", "u8"],   // Используем u8 вместо string
+          ["kind", "u8"],
           ["amount", "u64"],
         ],
       },
@@ -30,7 +28,6 @@ class DepositInstruction {
     return Buffer.from(
       borsh.serialize(
         DepositInstruction.schema,
-        // Прямая сериализация объекта
         this
       )
     );
@@ -38,21 +35,17 @@ class DepositInstruction {
 }
 
 async function interactWithDepositProgram() {
-  // Подключение к сети (в данном примере используется devnet)
   const connection = new web3.Connection(
     web3.clusterApiUrl("devnet"),
     "confirmed"
   );
 
-  // Преобразуем Uint8Array в Buffer для совместимости
   const privateKey = Buffer.from([
     /* private key */
   ]);
 
   // Создание кошелька для взаимодействия
   const wallet = web3.Keypair.fromSecretKey(privateKey);
-
-  // Адрес программы (Programme ID) - нужно заменить на реальный
   const PROGRAM_ID = pg.PROGRAM_ID;
 
   // Создание аккаунта для хранения депозита
@@ -80,10 +73,8 @@ async function interactWithDepositProgram() {
 
   console.log("делаем депозит");
 
-  // Размер структуры DepositAccount в байтах (pubkey 32 байта + u64 8 байт)
   const ACCOUNT_SIZE = 40;
 
-  // Создание транзакции выделения места под аккаунт
   const createAccountIx = web3.SystemProgram.createAccount({
     fromPubkey: wallet.publicKey,
     newAccountPubkey: depositAccount.publicKey,
@@ -92,10 +83,9 @@ async function interactWithDepositProgram() {
     programId: PROGRAM_ID
   });
 
-  // Модифицируйте транзакцию
   const tx = new web3.Transaction()
-    .add(createAccountIx)  // Сначала создаем аккаунт
-    .add(depositInstruction); // Затем выполняем депозит
+    .add(createAccountIx)
+    .add(depositInstruction);
   const txSignature = await web3.sendAndConfirmTransaction(connection, tx, [
     wallet,
     depositAccount,
@@ -122,7 +112,6 @@ async function interactWithDepositProgram() {
     data: withdrawIx.toBuffer(),
   });
 
-  // Создание и отправка транзакции на вывод
   const withdrawTx = new web3.Transaction().add(withdrawInstruction);
   const withdrawTxSignature = await web3.sendAndConfirmTransaction(
     connection,
@@ -133,5 +122,4 @@ async function interactWithDepositProgram() {
   console.log("Вывод выполнен. Транзакция:", withdrawTxSignature);
 }
 
-// Запуск функции
 interactWithDepositProgram().catch(console.error);
