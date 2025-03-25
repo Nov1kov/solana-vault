@@ -38,42 +38,39 @@ mod tests {
     async fn test_deposit() {
         let (program_id, mut program_test, depositor) = setup();
 
-        let deposit_account = Keypair::new();
+        let (deposit_account_pubkey, _) = Pubkey::find_program_address(
+            &[b"deposit", &depositor.pubkey().to_bytes()],
+            &program_id
+        );;
 
-        let deposit_account_data = DepositAccount { owner: depositor.pubkey(), balance: 0 };
-        let mut data = vec![];
-        deposit_account_data.serialize(&mut data).unwrap();
-        program_test.add_account(deposit_account.pubkey(), Account {
-            owner: program_id,
-            lamports: 1,
-            data,
-            ..Account::default()
-        });
-
+        // Start the test runtime
         let (banks_client, payer, recent_blockhash) = program_test.start().await;
 
+        // Prepare deposit instruction
         let deposit_amount = 50_000_000; // 0.05 SOL
         let deposit_instruction = Instruction::new_with_borsh(
             program_id,
             &(DepositInstruction::Deposit { amount: deposit_amount }),
             vec![
                 AccountMeta::new(depositor.pubkey(), true),
-                AccountMeta::new(deposit_account.pubkey(), false),
+                AccountMeta::new(deposit_account_pubkey, false),
                 AccountMeta::new_readonly(system_program::id(), false)
-            ],
+            ]
         );
 
+        // Create and send transaction
         let mut transaction = Transaction::new_with_payer(
             &[deposit_instruction],
-            Some(&payer.pubkey()),
+            Some(&payer.pubkey())
         );
         transaction.sign(&[&payer, &depositor], recent_blockhash);
 
+        // Process the transaction
         banks_client.process_transaction(transaction).await.unwrap();
 
         // Verify deposit account balance
         let deposit_account_data = banks_client
-            .get_account(deposit_account.pubkey()).await
+            .get_account(deposit_account_pubkey).await
             .unwrap()
             .unwrap();
 
@@ -85,14 +82,17 @@ mod tests {
     async fn test_withdrawal() {
         let (program_id, mut program_test, depositor) = setup();
 
-        let deposit_account = Keypair::new();
+        let (deposit_account_pubkey, _) = Pubkey::find_program_address(
+            &[b"deposit", &depositor.pubkey().to_bytes()],
+            &program_id
+        );;
 
         let initial_balance = 75_000_000; // 0.075 SOL
         let deposit_account_data = DepositAccount { owner: depositor.pubkey(), balance: initial_balance };
         let mut account_data = vec![];
         deposit_account_data.serialize(&mut account_data).unwrap();
 
-        program_test.add_account(deposit_account.pubkey(), Account {
+        program_test.add_account(deposit_account_pubkey, Account {
             owner: program_id,
             lamports: initial_balance,
             data: account_data,
@@ -108,7 +108,7 @@ mod tests {
             &(DepositInstruction::Withdraw { amount: withdraw_amount }),
             vec![
                 AccountMeta::new(deposit_pubkey, true),
-                AccountMeta::new(deposit_account.pubkey(), false),
+                AccountMeta::new(deposit_account_pubkey, false),
                 AccountMeta::new_readonly(system_program::id(), false)
             ],
         );
@@ -123,7 +123,7 @@ mod tests {
 
         // Verify deposit account balance after withdrawal
         let deposit_account_data = banks_client
-            .get_account(deposit_account.pubkey()).await
+            .get_account(deposit_account_pubkey).await
             .unwrap()
             .unwrap();
 
@@ -135,14 +135,17 @@ mod tests {
     async fn test_insufficient_funds_withdrawal() {
         let (program_id, mut program_test, depositor) = setup();
 
-        let deposit_account = Keypair::new();
+        let (deposit_account_pubkey, _) = Pubkey::find_program_address(
+            &[b"deposit", &depositor.pubkey().to_bytes()],
+            &program_id
+        );;
 
         let initial_balance = 25_000_000; // 0.025 SOL
         let deposit_account_data = DepositAccount { owner: depositor.pubkey(), balance: initial_balance };
         let mut account_data = vec![];
         deposit_account_data.serialize(&mut account_data).unwrap();
 
-        program_test.add_account(deposit_account.pubkey(), Account {
+        program_test.add_account(deposit_account_pubkey, Account {
             owner: program_id,
             lamports: initial_balance,
             data: account_data,
@@ -158,7 +161,7 @@ mod tests {
             &(DepositInstruction::Withdraw { amount: withdraw_amount }),
             vec![
                 AccountMeta::new(depositor.pubkey(), true),
-                AccountMeta::new(deposit_account.pubkey(), false),
+                AccountMeta::new(deposit_account_pubkey, false),
                 AccountMeta::new_readonly(system_program::id(), false)
             ],
         );
@@ -188,7 +191,10 @@ mod tests {
         let (program_id, mut program_test, depositor) = setup();
 
         let unauthorized_user = Keypair::new();
-        let deposit_account = Keypair::new();
+        let (deposit_account_pubkey, _) = Pubkey::find_program_address(
+            &[b"deposit", &depositor.pubkey().to_bytes()],
+            &program_id
+        );;
 
         program_test.add_account(unauthorized_user.pubkey(), Account {
             lamports: 100_000_000,
@@ -203,7 +209,7 @@ mod tests {
         let mut account_data = vec![];
         deposit_account_data.serialize(&mut account_data).unwrap();
 
-        program_test.add_account(deposit_account.pubkey(), Account {
+        program_test.add_account(deposit_account_pubkey, Account {
             owner: program_id,
             lamports: initial_balance,
             data: account_data,
@@ -218,7 +224,7 @@ mod tests {
             &(DepositInstruction::Withdraw { amount: withdraw_amount }),
             vec![
                 AccountMeta::new(unauthorized_user.pubkey(), true),
-                AccountMeta::new(deposit_account.pubkey(), false),
+                AccountMeta::new(deposit_account_pubkey, false),
                 AccountMeta::new_readonly(system_program::id(), false)
             ],
         );
@@ -232,11 +238,11 @@ mod tests {
         let result = banks_client.process_transaction(transaction).await;
 
         if let Err(BanksClientError::TransactionError(
-                       TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature)
+                       TransactionError::InstructionError(0, InstructionError::InvalidAccountData)
                    )) = result {
             // Тест пройден успешно
         } else {
-            panic!("Expected MissingRequiredSignature error");
+            panic!("Expected MissingRequiredSignature error, got: {:?}", result);
         }
     }
 }

@@ -40,16 +40,13 @@ async function interactWithDepositProgram() {
     "confirmed"
   );
 
-  const privateKey = Buffer.from([
-    /* private key */
-  ]);
-
-  // Создание кошелька для взаимодействия
-  const wallet = web3.Keypair.fromSecretKey(privateKey);
+  const wallet = pg.wallet.keypair;
   const PROGRAM_ID = pg.PROGRAM_ID;
 
-  // Создание аккаунта для хранения депозита
-  const depositAccount = web3.Keypair.generate();
+  const [depositAccountPubKey, bump] = web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("deposit"), wallet.publicKey.toBuffer()],
+    PROGRAM_ID
+  );
 
   // Депозит 0.02 SOL
   const depositIx = new DepositInstruction(
@@ -60,7 +57,7 @@ async function interactWithDepositProgram() {
   const depositInstruction = new web3.TransactionInstruction({
     keys: [
       { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-      { pubkey: depositAccount.publicKey, isSigner: false, isWritable: true },
+      { pubkey: depositAccountPubKey, isSigner: false, isWritable: true },
       {
         pubkey: web3.SystemProgram.programId,
         isSigner: false,
@@ -71,24 +68,12 @@ async function interactWithDepositProgram() {
     data: depositIx.toBuffer(),
   });
 
-  console.log("делаем депозит");
-
-  const ACCOUNT_SIZE = 40;
-
-  const createAccountIx = web3.SystemProgram.createAccount({
-    fromPubkey: wallet.publicKey,
-    newAccountPubkey: depositAccount.publicKey,
-    lamports: await connection.getMinimumBalanceForRentExemption(ACCOUNT_SIZE),
-    space: ACCOUNT_SIZE,
-    programId: PROGRAM_ID
-  });
+  console.log("делаем депозит в", depositAccountPubKey.toString());
 
   const tx = new web3.Transaction()
-    .add(createAccountIx)
     .add(depositInstruction);
   const txSignature = await web3.sendAndConfirmTransaction(connection, tx, [
-    wallet,
-    depositAccount,
+    wallet
   ]);
 
   console.log("Депозит выполнен. Транзакция:", txSignature);
@@ -101,7 +86,7 @@ async function interactWithDepositProgram() {
   const withdrawInstruction = new web3.TransactionInstruction({
     keys: [
       { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-      { pubkey: depositAccount.publicKey, isSigner: false, isWritable: true },
+      { pubkey: depositAccountPubKey, isSigner: false, isWritable: true },
       {
         pubkey: web3.SystemProgram.programId,
         isSigner: false,
@@ -116,7 +101,7 @@ async function interactWithDepositProgram() {
   const withdrawTxSignature = await web3.sendAndConfirmTransaction(
     connection,
     withdrawTx,
-    [wallet, depositAccount]
+    [wallet]
   );
 
   console.log("Вывод выполнен. Транзакция:", withdrawTxSignature);
