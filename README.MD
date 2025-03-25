@@ -8,6 +8,8 @@ Cмарт-контракт, который позволяет пользоват
 
 ## Setup
 
+1. https://docs.anza.xyz/cli/install
+2. 
 ```shell
 cargo update -p bytemuck_derive --precise 1.8.1
 ```
@@ -17,3 +19,5 @@ cargo update -p bytemuck_derive --precise 1.8.1
 ```shell
 cargo build-sbf
 ```
+
+на выходе: `target/deploy/solana_vault.so`
