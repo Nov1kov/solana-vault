@@ -1,3 +1,4 @@
+# workaround to use `cargo build-sbf`
 cargo-features = ["edition2024"]
 
 [package]
